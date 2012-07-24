@@ -13,6 +13,7 @@
 #include <boost/tuple/tuple_comparison.hpp>
 #include <lbfgs.h>
 #include "ObjectRecognition/GAPhenotype.h"
+#include "MachineLearning\KMeans.h"
 
 namespace vpl {
 
@@ -76,6 +77,8 @@ class ObjectRecognizer : public VisSysComponent
 		bool learn_importance_weights;
 		bool learn_parsing_model;
 		bool use_learned_parsing_model;
+		bool cluster_shapes;
+		unsigned int cluster_k;
 	};
 
 	Params m_params;
@@ -93,6 +96,7 @@ private:
 	void learnJointParsingModel();
 	void loadWeights(Lookup_Table &lt);
 	void loadParsingModels(std::map<std::string, int> &parsing_models);
+	void clusterShapes();
 
 	std::vector<std::string> all_classes;
 	std::map<unsigned int, std::string> model_to_class;

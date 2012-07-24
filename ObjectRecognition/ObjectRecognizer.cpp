@@ -93,6 +93,13 @@ void ObjectRecognizer::ReadParamsFromUserArguments()
 	g_userArgs.ReadBoolArg("ObjectRecognizer", "use_learned_parsing_model", 
 		"Use a learned parsing model for each class",
 		false, &m_params.use_learned_parsing_model);
+
+	g_userArgs.ReadBoolArg("ObjectRecognizer", "cluster_shapes", 
+		"Cluster each class to retrieve exemplar shapes for parameterization learning",
+		false, &m_params.cluster_shapes);
+
+	g_userArgs.ReadArg("ObjectRecognizer", "cluster_k", 
+		"Number of clusters for each class", 1u, &m_params.cluster_k);
 }
 
 void ObjectRecognizer::Initialize(vpl::graph::node v)
@@ -532,26 +539,6 @@ void generateAllPermutations(std::map<std::string, unsigned int> &unfinished_map
 	}
 }
 
-unsigned int getParameterization(lbfgsfloatval_t val)
-{
-	if (val < 0.25)
-	{
-		return 1;
-	}
-	else if (val < 0.5)
-	{
-		return 2;
-	}
-	else if (val < 0.75)
-	{
-		return 3;
-	}
-	else
-	{
-		return 4;
-	}
-}
-
 double ObjectRecognizer::evaluate(GAPhenotype &pheno)
 {
 	const ModelHierarchy &mh = m_pObjectLearner->GetModelHierarchy();
@@ -719,6 +706,42 @@ void ObjectRecognizer::learnJointParsingModel()
 	//////////////////////////
 }
 
+void ObjectRecognizer::clusterShapes()
+{
+	const ModelHierarchy &model_hierarchy = m_pObjectLearner->GetModelHierarchy();
+
+	// for each class...
+	for (auto c = all_classes.begin(); c != all_classes.end(); ++c)
+	{
+		// gather all of its shapes.
+		std::vector<unsigned int> models;
+		getAllModelIndicesOfGivenClass(models, *c, model_hierarchy);
+
+		// get the shape-context-equivalent SPG for each of these models.
+		std::vector<std::pair<SPGPtr, unsigned int> > shape_context_spgs; // change this to a pair and include the filename.
+		for (auto model = models.begin(); model != models.end(); ++model)
+		{
+			SPGPtr &shape_context_spg = CreateSinglePartSPG(model_hierarchy.GetModelView(*model).ptrShapeContour);
+			std::pair<SPGPtr, unsigned int> spg_model_pair;
+			spg_model_pair.first = shape_context_spg;
+			spg_model_pair.second = *model;
+
+			shape_context_spgs.push_back(spg_model_pair);
+		}
+
+		cout << "Clustering about " << *c << endl;
+		KMeans<SPGPtr> kmeans;
+		kmeans.init(shape_context_spgs, m_params.cluster_k);
+		kmeans.run();
+
+	}
+	// use these to cluster, basic k-means back and forth clustering.
+
+	// get info
+	//const ModelHierarchy::ModelView &model_view = model_hierarchy.GetModelView(*model);
+	//std::cout << "Model: " << model_hierarchy.ToString(model_view) << std::endl;
+	exit(1);
+}
 
 // Currently, this is learning the individual class-wise MAP parsing parameterization.
 // Would prefer holistic joint MAP assignment.
@@ -1077,7 +1100,8 @@ void ObjectRecognizer::Run()
 	getAllClassesInDatabase(all_classes, modelHierarchy);
 	getModelToClassMapping(model_to_class, modelHierarchy);
 	getClassToIndexMapping(class_to_index, all_classes);
-
+	
+	clusterShapes();
 	learnParsingModel();
 	learnWeights();
 
