@@ -539,6 +539,29 @@ void generateAllPermutations(std::map<std::string, unsigned int> &unfinished_map
 	}
 }
 
+<<<<<<< HEAD
+/*unsigned int getParameterization(lbfgsfloatval_t val)
+{
+	if (val < 0.25)
+	{
+		return 1;
+	}
+	else if (val < 0.5)
+	{
+		return 2;
+	}
+	else if (val < 0.75)
+	{
+		return 3;
+	}
+	else
+	{
+		return 4;
+	}
+}*/
+
+=======
+>>>>>>> 96b8bffa6bd27931372f9623923458c9f8873231
 double ObjectRecognizer::evaluate(GAPhenotype &pheno)
 {
 	const ModelHierarchy &mh = m_pObjectLearner->GetModelHierarchy();
@@ -548,7 +571,7 @@ double ObjectRecognizer::evaluate(GAPhenotype &pheno)
 
 	for (unsigned query = 0; query < mh.ModelViewCount(); ++query)
 	{
-		if (query % 100 == 0)
+		if (query % 20 == 0)
 		{
 			cout << "query " << query << "...";
 		}
@@ -600,7 +623,7 @@ void ObjectRecognizer::learnJointParsingModel()
 
 	ofstream file;
 	file.open("parsing_model.txt");
-	srand((unsigned int)time(NULL));
+	srand(time(NULL));
 
 	SPGMatch gmatch;
 	const ModelHierarchy &model_hierarchy = m_pObjectLearner->GetModelHierarchy();
@@ -611,8 +634,9 @@ void ObjectRecognizer::learnJointParsingModel()
 	// we will have a better way to address this.
 	unsigned int population_size = 10;
 	double crossover_rate = 0.8;
-	unsigned int iterations = 2;
+	unsigned int iterations = 3;
 	unsigned int number_of_classes = all_classes.size();
+	std::cout << "number of classes: " << number_of_classes << endl;
 	std::vector<unsigned int> parameterizations;
 	for (unsigned i = 0; i < 4; ++i)
 		parameterizations.push_back(i);
@@ -711,7 +735,6 @@ void ObjectRecognizer::learnJointParsingModel()
 
 	sort(population.begin(), population.end());
 	cout << "best phenotype" << endl << "--------------------" << endl;
-	population[population_size - 1].toString();
 	for (unsigned g = 0; g < population[population_size - 1].chromosome.size(); ++g)
 	{
 		cout << population[population_size - 1].chromosome[g] << ", ";
@@ -731,8 +754,6 @@ void ObjectRecognizer::learnJointParsingModel()
 void ObjectRecognizer::clusterShapes()
 {
 	const ModelHierarchy &model_hierarchy = m_pObjectLearner->GetModelHierarchy();
-	ofstream file;
-	file.open("exemplars.txt");
 
 	// for each class...
 	for (auto c = all_classes.begin(); c != all_classes.end(); ++c)
@@ -754,56 +775,17 @@ void ObjectRecognizer::clusterShapes()
 		}
 
 		cout << "Clustering about " << *c << endl;
-		cout << "------------------------------------------------------------------------------" << endl;
-		vector<KMedoids> clusterings;
-		const int NUM_CLUSTERS = 5;
-		int best_cluster = 0;
-		double best_cluster_score = numeric_limits<double>::max();
+		KMeans<SPGPtr> kmeans;
+		kmeans.init(shape_context_spgs, m_params.cluster_k);
+		kmeans.run();
 
-		for (unsigned cluster = 0; cluster < NUM_CLUSTERS; ++cluster)
-		{
-			KMedoids kmedoids;
-			kmedoids.init(shape_context_spgs, m_params.cluster_k, m_pShapeMatcher);
-			kmedoids.run();
-			clusterings.push_back(kmedoids);
-
-			if (kmedoids.current_cost < best_cluster_score)
-			{
-				best_cluster = cluster;
-				best_cluster_score = kmedoids.current_cost;
-			}
-		}
-
-		// centroids.
-		for (unsigned i = 0; i < clusterings[best_cluster].clusters.size(); ++i)
-		{
-			// the inner dereferencing is to an element of clusters, which is an index into points,
-			// which points to a KMedoidsPoint, which has an id element pointing to the actual id.
-			unsigned int model_id = clusterings[best_cluster].points[clusterings[best_cluster].clusters[i]].id;
-			const ModelHierarchy::ModelView &model_view = model_hierarchy.GetModelView(model_id);
-			
-			if (model_hierarchy.GetModelObject(model_view.viewInfo.storParentMetadataId).classInfo.id < 0)
-			{
-				std::cout << "Model: " << model_hierarchy.ToString(model_view) << std::endl;
-				cout << model_hierarchy.GetModelObject(model_view.viewInfo.storParentMetadataId).classInfo.name << endl;
-				cout << model_hierarchy.GetModelObject(model_view.viewInfo.storParentMetadataId).classInfo.id << endl;
-				cout << model_hierarchy.GetModelObject(model_view.viewInfo.storParentMetadataId).classInfo.storDataId << endl;
-				cout << model_hierarchy.GetModelObject(model_view.viewInfo.storParentMetadataId).classInfo.storParentMetadataId << endl;
-			}
-			file << model_hierarchy.getModelViewClass(model_view) << ", " << model_hierarchy.GetModelObject(model_view.viewInfo.storParentMetadataId).classInfo.id << "\n";
-		}
-
-		// neighbours.
-		for (unsigned i = 0; i < clusterings[best_cluster].cluster_neighbours.size(); ++i)
-		{
-			unsigned int neighbour_id = clusterings[best_cluster].points[clusterings[best_cluster].cluster_neighbours[i]].id;
-			const ModelHierarchy::ModelView &neighbour_model_view = model_hierarchy.GetModelView(neighbour_id);
-			file << model_hierarchy.getModelViewClass(neighbour_model_view) << ", " << model_hierarchy.GetModelObject(neighbour_model_view.viewInfo.storParentMetadataId).classInfo.id << "\n";
-		}
 	}
-	file.close();
-	cout << "Clustering completed.  Exiting." << endl;
-	exit(0);
+	// use these to cluster, basic k-means back and forth clustering.
+
+	// get info
+	//const ModelHierarchy::ModelView &model_view = model_hierarchy.GetModelView(*model);
+	//std::cout << "Model: " << model_hierarchy.ToString(model_view) << std::endl;
+	exit(1);
 }
 
 // Currently, this is learning the individual class-wise MAP parsing parameterization.
@@ -1163,7 +1145,7 @@ void ObjectRecognizer::Run()
 	getAllClassesInDatabase(all_classes, modelHierarchy);
 	getModelToClassMapping(model_to_class, modelHierarchy);
 	getClassToIndexMapping(class_to_index, all_classes);
-
+	
 	clusterShapes();
 	learnParsingModel();
 	learnWeights();

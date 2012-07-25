@@ -13,7 +13,7 @@
 #include <boost/tuple/tuple_comparison.hpp>
 //#include <lbfgs.h>
 #include "ObjectRecognition/GAPhenotype.h"
-#include "MachineLearning\KMeans.h"
+#include "MachineLearning\KMedoids.h"
 
 namespace vpl {
 

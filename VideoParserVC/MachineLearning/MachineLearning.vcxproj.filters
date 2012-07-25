@@ -167,7 +167,7 @@
     <ClInclude Include="..\..\MachineLearning\BehaviorAnalyzer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\MachineLearning\KMeans.h">
+    <ClInclude Include="..\..\MachineLearning\KMedoids.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

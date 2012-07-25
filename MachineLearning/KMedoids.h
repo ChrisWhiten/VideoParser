@@ -27,7 +27,7 @@ struct KMedoids
 {
 	// two of these functions.
 	// one returns the actual KMedoidsPoint object, the other returns its index in the pts vector.
-	KMedoidsPoint randomlySamplePointWithReplacement(vector<KMedoidsPoint> &pts)
+	KMedoidsPoint KMedoids::randomlySamplePointWithReplacement(vector<KMedoidsPoint> &pts)
 	{
 		static vector<unsigned int> already_sampled;
 		bool sampled = false;
@@ -50,9 +50,8 @@ struct KMedoids
 		}
 	};
 
-	int randomlySampleIndexWithReplacement(vector<KMedoidsPoint> &pts)
+	int KMedoids::randomlySampleIndexWithReplacement(vector<KMedoidsPoint> &pts)
 	{
-		static vector<unsigned int> already_sampled;
 		bool sampled = false;
 		unsigned int num_pts = pts.size();
 
@@ -60,20 +59,20 @@ struct KMedoids
 		{
 			int index = (int)floor((double) (rand() % num_pts));
 			unsigned int spg_id = pts[index].id;
-			if (std::find(already_sampled.begin(), already_sampled.end(), spg_id) != already_sampled.end())
+			if (std::find(sampled_points.begin(), sampled_points.end(), spg_id) != sampled_points.end())
 			{
 				// already sampled.
 				continue;
 			}
 			else
 			{
-				already_sampled.push_back(spg_id);
+				sampled_points.push_back(spg_id);
 				return index;
 			}
 		}
 	};
 
-	void init(vector<pair<vpl::SPGPtr, unsigned int> > data, unsigned int _k, std::shared_ptr<const vpl::ShapeMatcher> sm)
+	void KMedoids::init(vector<pair<vpl::SPGPtr, unsigned int> > data, unsigned int _k, std::shared_ptr<const vpl::ShapeMatcher> sm)
 	{
 		srand((unsigned) time(NULL));
 		k = _k;
@@ -98,19 +97,20 @@ struct KMedoids
 		{
 			clusters.push_back(randomlySampleIndexWithReplacement(points));
 		}
+		sampled_points.clear();
 		
 		buildDistanceMatrix();
 		current_cost = assignAllPointsToNearestCluster(clusters);
 	};
 
-	double distance(vpl::SPGPtr s1, vpl::SPGPtr s2)
+	double KMedoids::distance(vpl::SPGPtr s1, vpl::SPGPtr s2)
 	{
 		return shape_matcher->Match(*s1, *s2);
 	};
 
 	// work with the pairwise distance matrix in k-medoids,
 	// in contrast to actual points.
-	void buildDistanceMatrix()
+	void KMedoids::buildDistanceMatrix()
 	{
 		distance_matrix = new cv::Mat_<double>(points.size(), points.size());
 		cluster_assignments = new cv::Mat_<double>(points.size(), points.size());
@@ -126,11 +126,12 @@ struct KMedoids
 	};
 
 	// (r, c) != 0 means r is assigned to point c (a cluster) with cost (r, c).
-	double assignAllPointsToNearestCluster(vector<int> &clustering)
+	double KMedoids::assignAllPointsToNearestCluster(vector<int> &clustering)
 	{
 		// reset assignments.
 		cluster_assignments->release();
 		cluster_assignments = new cv::Mat(cv::Mat::zeros(points.size(), points.size(), CV_64F));
+		cluster_neighbours.clear();
 		double cost = 0;
 
 		for (unsigned i = 0; i < points.size(); ++i)
@@ -152,10 +153,31 @@ struct KMedoids
 			cluster_assignments->at<double>(i, cluster) = min_dist;
 			cost += min_dist;
 		}
+
+		// now, slide down each column that is non-zero and store the furthest point in cluster_neighbours.
+		for (unsigned c = 0; c < clusters.size(); ++c)
+		{
+			unsigned furthest_pt = 0;
+			double furthest_dist = 0;
+			for (unsigned pt = 0; pt < points.size(); ++pt)
+			{
+				double pt_distance = cluster_assignments->at<double>(pt, c);
+				if (pt_distance > furthest_dist)
+				{
+					furthest_pt = pt;
+					furthest_dist = pt_distance;
+				}
+			}
+			// only add if there are neighbours to add..
+			if (furthest_dist > 0)
+			{
+				cluster_neighbours.push_back(furthest_pt);
+			}
+		}
 		return cost;
 	};
 
-	void run()
+	void KMedoids::run()
 	{
 		while (true)
 		{
@@ -193,17 +215,17 @@ struct KMedoids
 			{
 				break;
 			}
-			cout << "Iteration complete.  Cost minimized from " << current_cost << " to " << optimal_cost << endl;
+			//cout << "Iteration complete.  Cost minimized from " << current_cost << " to " << optimal_cost << endl;
 			clusters = optimal_clustering;
 			current_cost = optimal_cost;
 		}
-		cout << "Clustering complete" << endl;
-		cout << "Clusters: ";
+		//cout << "Clustering complete" << endl;
+		/*cout << "Clusters: ";
 		for (auto c = clusters.begin(); c != clusters.end(); ++c)
 		{
 			cout << points[*c].id << ", ";
 		}
-		cout << endl;
+		cout << endl;*/
 	};
 
 	/* Member variables */
@@ -224,6 +246,15 @@ struct KMedoids
 	vector<int> clusters;
 	unsigned int k;
 	double current_cost;
+
+	// here I store <= one neighbour point for each cluster, for matching purposes in model selection
+	// As a rule of thumb, I am storing the furthest point from the centroid that still belongs to the cluster.
+	// this should increase discriminative power, as we are selecting a parameterization that allows for 
+	// matching the more difficult examples.
+	vector<int> cluster_neighbours;
+
+	// this is a vector used so I don't sample the same points as multiple clusters.
+	vector<unsigned int> sampled_points;
 };
 
 #endif
