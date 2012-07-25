@@ -179,7 +179,6 @@ public:
 			oss << parent.classInfo.name << "," 
 				<< parent.classInfo.id << ",";
 		}
-
 		oss << mv.viewInfo.ToString();
 		
 		oss << ")";
