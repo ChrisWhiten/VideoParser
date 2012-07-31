@@ -9,6 +9,8 @@
 #include <iostream>
 #include <stdlib.h>
 #include <string>
+#include <sstream>
+#include <iterator>
 
 using namespace std;
 class GAPhenotype
@@ -18,7 +20,7 @@ public:
 	GAPhenotype(vector<unsigned int> a, unsigned int l, vector<unsigned int> c);
 	GAPhenotype();
 
-	void mutate(double mutation_rate = 0.1);
+	GAPhenotype mutate(double mutation_rate = 0.1);
 	pair<GAPhenotype, GAPhenotype> crossover(GAPhenotype mate);
 	string toString();
 

@@ -548,7 +548,7 @@ double ObjectRecognizer::evaluate(GAPhenotype &pheno)
 
 	for (unsigned query = 0; query < mh.ModelViewCount(); ++query)
 	{
-		if (query % 100 == 0)
+		if (query % 20 == 0)
 		{
 			cout << "query " << query << "...";
 		}
@@ -611,10 +611,10 @@ void ObjectRecognizer::learnJointParsingModel()
 	// we will have a better way to address this.
 	unsigned int population_size = 10;
 	double crossover_rate = 0.8;
-	unsigned int iterations = 2;
+	unsigned int iterations = 5;
 	unsigned int number_of_classes = all_classes.size();
 	std::vector<unsigned int> parameterizations;
-	for (unsigned i = 0; i < 4; ++i)
+	for (unsigned i = 0; i < 2; ++i)
 		parameterizations.push_back(i);
 	
 	// initialize population.
@@ -655,8 +655,8 @@ void ObjectRecognizer::learnJointParsingModel()
 				population.push_back(children.first);
 				population.push_back(children.second);
 			}
-			population[i].mutate();
-			population[i + 1].mutate();
+			population.push_back(population[i].mutate());
+			population.push_back(population[i + 1].mutate());
 		}
 
 		cout << "eval" << endl;
@@ -665,10 +665,7 @@ void ObjectRecognizer::learnJointParsingModel()
 		{
 			population[i].fitness = evaluate(population[i]);
 			cout << endl;
-			for (unsigned g = 0; g < population[i].chromosome.size(); ++g)
-			{
-				cout << population[i].chromosome[g] << ", ";
-			}
+			cout << population[i].toString() << endl;
 			cout << population[i].fitness << endl;
 		}
 
@@ -682,10 +679,14 @@ void ObjectRecognizer::learnJointParsingModel()
 			{
 				if (selector < 0.95)
 				{
+					//cout << "Removing: " << population[1].toString() << endl;
+					//cout << "Fitness: " << population[1].fitness << " versus " << population[0].fitness << endl;
 					population.erase(population.begin() + 1);
 				}
 				else
 				{
+					//cout << "Removing: " << population[0].toString() << endl;
+					//cout << "Fitness: " << population[0].fitness << " versus " << population[1].fitness << endl;
 					population.erase(population.begin());
 				}
 			}
@@ -693,10 +694,14 @@ void ObjectRecognizer::learnJointParsingModel()
 			{
 				if (selector < 0.95)
 				{
+					//cout << "Removing: " << population[0].toString() << endl;
+					//cout << "Fitness: " << population[0].fitness << " versus " << population[1].fitness << endl;
 					population.erase(population.begin());
 				}
 				else
 				{
+					//cout << "Removing: " << population[1].toString() << endl;
+					//cout << "Fitness: " << population[1].fitness << " versus " << population[0].fitness << endl;
 					population.erase(population.begin() + 1);
 				}
 			}
@@ -730,6 +735,9 @@ void ObjectRecognizer::learnJointParsingModel()
 
 void ObjectRecognizer::clusterShapes()
 {
+	if (!m_params.cluster_shapes)
+		return;
+
 	const ModelHierarchy &model_hierarchy = m_pObjectLearner->GetModelHierarchy();
 	ofstream file;
 	file.open("exemplars.txt");
@@ -754,9 +762,9 @@ void ObjectRecognizer::clusterShapes()
 		}
 
 		cout << "Clustering about " << *c << endl;
-		cout << "------------------------------------------------------------------------------" << endl;
+		cout << "------------------------------------------------------------------------------" << endl << endl;
 		vector<KMedoids> clusterings;
-		const int NUM_CLUSTERS = 5;
+		const int NUM_CLUSTERS = 50;
 		int best_cluster = 0;
 		double best_cluster_score = numeric_limits<double>::max();
 
@@ -774,6 +782,17 @@ void ObjectRecognizer::clusterShapes()
 			}
 		}
 
+		cout << "Centroids + costs: " << endl;
+		if (clusterings[best_cluster].optimal_centroid_costs.size() == 0)
+		{
+			cout << "THROWING A FITTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT" << endl << endl << endl << endl;
+		}
+		for (auto p = clusterings[best_cluster].optimal_centroid_costs.begin(); p != clusterings[best_cluster].optimal_centroid_costs.end(); ++p)
+		{
+			const ModelHierarchy::ModelView &model_view = model_hierarchy.GetModelView(clusterings[best_cluster].points[p->first].id);
+			cout << model_hierarchy.getModelViewClass(model_view) << ", " << model_hierarchy.GetModelObject(model_view.viewInfo.storParentMetadataId).classInfo.id << " -> " << p->second << endl;
+		}
+
 		// centroids.
 		for (unsigned i = 0; i < clusterings[best_cluster].clusters.size(); ++i)
 		{
@@ -782,6 +801,7 @@ void ObjectRecognizer::clusterShapes()
 			unsigned int model_id = clusterings[best_cluster].points[clusterings[best_cluster].clusters[i]].id;
 			const ModelHierarchy::ModelView &model_view = model_hierarchy.GetModelView(model_id);
 			
+			// debugging purposes.
 			if (model_hierarchy.GetModelObject(model_view.viewInfo.storParentMetadataId).classInfo.id < 0)
 			{
 				std::cout << "Model: " << model_hierarchy.ToString(model_view) << std::endl;
@@ -791,14 +811,19 @@ void ObjectRecognizer::clusterShapes()
 				cout << model_hierarchy.GetModelObject(model_view.viewInfo.storParentMetadataId).classInfo.storParentMetadataId << endl;
 			}
 			file << model_hierarchy.getModelViewClass(model_view) << ", " << model_hierarchy.GetModelObject(model_view.viewInfo.storParentMetadataId).classInfo.id << "\n";
+
 		}
 
 		// neighbours.
 		for (unsigned i = 0; i < clusterings[best_cluster].cluster_neighbours.size(); ++i)
 		{
-			unsigned int neighbour_id = clusterings[best_cluster].points[clusterings[best_cluster].cluster_neighbours[i]].id;
-			const ModelHierarchy::ModelView &neighbour_model_view = model_hierarchy.GetModelView(neighbour_id);
-			file << model_hierarchy.getModelViewClass(neighbour_model_view) << ", " << model_hierarchy.GetModelObject(neighbour_model_view.viewInfo.storParentMetadataId).classInfo.id << "\n";
+			vector<pair<unsigned, double> > neighbours = clusterings[best_cluster].cluster_neighbours[i];
+			for (unsigned j = 0; j < neighbours.size(); ++j)
+			{
+				unsigned int neighbour_id = clusterings[best_cluster].points[neighbours[j].first].id;
+				const ModelHierarchy::ModelView &neighbour_model_view = model_hierarchy.GetModelView(neighbour_id);
+				file << model_hierarchy.getModelViewClass(neighbour_model_view) << ", " << model_hierarchy.GetModelObject(neighbour_model_view.viewInfo.storParentMetadataId).classInfo.id << "\n";
+			}
 		}
 	}
 	file.close();

@@ -7,6 +7,7 @@
 #include <ShapeParsing\ShapeParseGraph.h>
 #include <opencv2/core/core.hpp>
 #include <algorithm>
+#include <boost/bind.hpp>
 
 using namespace std;
 
@@ -101,6 +102,7 @@ struct KMedoids
 		
 		buildDistanceMatrix();
 		current_cost = assignAllPointsToNearestCluster(clusters);
+		optimal_centroid_costs = recent_centroid_costs;
 	};
 
 	double KMedoids::distance(vpl::SPGPtr s1, vpl::SPGPtr s2)
@@ -133,6 +135,16 @@ struct KMedoids
 		cluster_assignments = new cv::Mat(cv::Mat::zeros(points.size(), points.size(), CV_64F));
 		cluster_neighbours.clear();
 		double cost = 0;
+	
+		recent_centroid_costs.clear();
+
+		for (auto clust = clustering.begin(); clust != clustering.end(); ++clust)
+		{
+			std::pair<int, double> local_cost;
+			local_cost.first = *clust;
+			local_cost.second = 0;
+			recent_centroid_costs.push_back(local_cost);
+		}
 
 		for (unsigned i = 0; i < points.size(); ++i)
 		{
@@ -152,26 +164,46 @@ struct KMedoids
 
 			cluster_assignments->at<double>(i, cluster) = min_dist;
 			cost += min_dist;
-		}
-
-		// now, slide down each column that is non-zero and store the furthest point in cluster_neighbours.
-		for (unsigned c = 0; c < clusters.size(); ++c)
-		{
-			unsigned furthest_pt = 0;
-			double furthest_dist = 0;
-			for (unsigned pt = 0; pt < points.size(); ++pt)
+			// dumb. use a map.
+			for (auto p = recent_centroid_costs.begin(); p != recent_centroid_costs.end(); ++p)
 			{
-				double pt_distance = cluster_assignments->at<double>(pt, c);
-				if (pt_distance > furthest_dist)
+				if (p->first == cluster)
 				{
-					furthest_pt = pt;
-					furthest_dist = pt_distance;
+					p->second += min_dist;
+					break;
 				}
 			}
-			// only add if there are neighbours to add..
-			if (furthest_dist > 0)
+		}
+
+		// now, slide down each column that is non-zero and store the furthest points in cluster_neighbours.
+		vector<std::pair<unsigned, double> > neighbours;
+		for (unsigned c = 0; c < clustering.size(); ++c)
+		{
+			for (unsigned pt = 0; pt < points.size(); ++pt)
 			{
-				cluster_neighbours.push_back(furthest_pt);
+				std::pair<unsigned, double> neighbour;
+				neighbour.first = pt;
+				neighbour.second = cluster_assignments->at<double>(pt, clustering[c]);
+				if (neighbour.second > 0)
+				{
+					neighbours.push_back(neighbour);
+				}
+			}
+
+			// sort by distance.
+			std::sort(neighbours.begin(), neighbours.end(), 
+				boost::bind(&std::pair<unsigned, double>::second, _1) <
+				boost::bind(&std::pair<unsigned, double>::second, _2));
+
+			const int NEIGHBOURS_TO_TAKE = 4;
+			if (neighbours.size() < NEIGHBOURS_TO_TAKE)
+			{
+				cluster_neighbours.push_back(neighbours);
+			}
+			else
+			{
+				vector<std::pair<unsigned, double> > furthest_neighbours(neighbours.end() - NEIGHBOURS_TO_TAKE, neighbours.end());
+				cluster_neighbours.push_back(furthest_neighbours);
 			}
 		}
 		return cost;
@@ -201,31 +233,24 @@ struct KMedoids
 					clustering.erase(clustering.begin() + m);
 					clustering.push_back(o);
 					double cost = assignAllPointsToNearestCluster(clustering);
-					//cout << cost << " versus the optimal " << optimal_cost << endl;
 
 					if (cost < optimal_cost)
 					{
 						optimal_cost = cost;
 						optimal_clustering = clustering;
+						optimal_centroid_costs = recent_centroid_costs;
 					}
 				}
 			}
 
+			// break when we've converged.
 			if (optimal_cost == current_cost)
 			{
 				break;
 			}
-			//cout << "Iteration complete.  Cost minimized from " << current_cost << " to " << optimal_cost << endl;
 			clusters = optimal_clustering;
 			current_cost = optimal_cost;
 		}
-		//cout << "Clustering complete" << endl;
-		/*cout << "Clusters: ";
-		for (auto c = clusters.begin(); c != clusters.end(); ++c)
-		{
-			cout << points[*c].id << ", ";
-		}
-		cout << endl;*/
 	};
 
 	/* Member variables */
@@ -251,10 +276,14 @@ struct KMedoids
 	// As a rule of thumb, I am storing the furthest point from the centroid that still belongs to the cluster.
 	// this should increase discriminative power, as we are selecting a parameterization that allows for 
 	// matching the more difficult examples.
-	vector<int> cluster_neighbours;
+	vector<vector<std::pair<unsigned, double> > > cluster_neighbours;
 
 	// this is a vector used so I don't sample the same points as multiple clusters.
 	vector<unsigned int> sampled_points;
+
+	// centroid-cost associations...
+	vector<pair<int, double> > recent_centroid_costs;
+	vector<pair<int, double> > optimal_centroid_costs;
 };
 
 #endif

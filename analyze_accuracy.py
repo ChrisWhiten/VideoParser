@@ -136,8 +136,8 @@ if __name__ == '__main__':
 	#shape_context_stems = ["shapecontext_results_whole_shape.txt", "shapecontext_results_whole_part.txt", "shapecontext_results_alpha15.txt", "shapecontext_results_unmatched_cost_1_alpha15.txt", "shapecontext_results_whole_unmatched_cost_1.txt"]
 	#shape_context_legends = ["Shape Contexts - Sampling relative to whole shape", "Shape Contexts - Samling relative to shape part", "Shape Contexts - Corner-relative sampling, alpha = 15", "Shape Contexts - Corner-relative sampling, unmatched cost = 1", "Shape Contexts - Whole shape sampling, unmatched cost = 1"]
 	
-	spg_matching_stems = ["recognition_results_normal.txt", "recognition_results.txt", "recognition_results_ga_parsing_model.txt"] # add to this list (and the spg_legends list) to graph multiple results against each other.
-	spg_legends = ["SPG ", "SPG Sanity Check", "SPG - joint parsing model"]
+	spg_matching_stems = ["recognition_results_learned.txt", "recognition_results.txt", "recognition_results_blahjuly28.txt"] # add to this list (and the spg_legends list) to graph multiple results against each other.
+	spg_legends = ["SPG learned ", "SPG recent",  "SPG"]
 	shape_context_stems = ["shapecontext_results.txt"]
 	shape_context_legends = ["Shape Contexts"]
 	

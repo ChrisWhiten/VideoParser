@@ -45,24 +45,25 @@ unsigned int GAPhenotype::randomAllele()
 
 string GAPhenotype::toString()
 {
-	string ret = "";
-	for (unsigned i = 0; i < length; ++i)
-	{
-		ret += chromosome[i];
-	}
-	return ret;
+	stringstream ret;
+	std::copy(chromosome.begin(), chromosome.end(), std::ostream_iterator<unsigned int>(ret, ", "));
+	return ret.str().c_str();
 }
 
-void GAPhenotype::mutate(double mutation_rate)
+GAPhenotype GAPhenotype::mutate(double mutation_rate)
 {
+	GAPhenotype ret(alleles, length, chromosome);
+
 	for (unsigned i = 0; i < length; ++i)
 	{
 		double mutation_attempt = rand() / (RAND_MAX + 1);
 		if (mutation_attempt < mutation_rate)
 		{
-			chromosome[i] = randomAllele();
+			ret.chromosome[i] = randomAllele();
 		}
 	}
+
+	return ret;
 }
 
 pair<GAPhenotype, GAPhenotype> GAPhenotype::crossover(GAPhenotype mate)
