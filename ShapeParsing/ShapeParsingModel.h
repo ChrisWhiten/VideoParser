@@ -8,6 +8,7 @@
 #include <Tools/TruthTable.h>
 #include <set>
 #include <algorithm>
+#include "ShapeParsing/ShapePartComp.h"
 
 namespace vpl {
 

@@ -320,6 +320,22 @@ public:
 	const Candidates& GetCandidates(unsigned column) const
 	{
 		ASSERT(column <  NumColumns());
+		/*std::cout << std::endl << "Candidates" << std::endl << "------------------" << std::endl;
+		for (unsigned i = 0; i < NumColumns(); ++i)
+		{
+			for (unsigned j = 0; j < m_table[i].size(); ++j)
+			{
+				std::cout << m_table[i].at(j).pr << std::endl;
+
+				for (auto it = m_table[i].at(j).config.begin(); it != m_table[i].at(j).config.end(); ++it)
+				{
+					std::cout << it->varId << " -> " << it->value << std::endl;
+				}
+				std::cout << std::endl;
+			}
+
+			std::cout << std::endl;
+		}*/
 
 		return m_table[column];
 	}

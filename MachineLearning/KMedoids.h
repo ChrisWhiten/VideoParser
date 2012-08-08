@@ -195,7 +195,7 @@ struct KMedoids
 				boost::bind(&std::pair<unsigned, double>::second, _1) <
 				boost::bind(&std::pair<unsigned, double>::second, _2));
 
-			const int NEIGHBOURS_TO_TAKE = 4;
+			const int NEIGHBOURS_TO_TAKE = 2;
 			if (neighbours.size() < NEIGHBOURS_TO_TAKE)
 			{
 				cluster_neighbours.push_back(neighbours);

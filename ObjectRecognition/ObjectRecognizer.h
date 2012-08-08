@@ -84,7 +84,7 @@ class ObjectRecognizer : public VisSysComponent
 	Params m_params;
 
 private:
-	double evaluate(GAPhenotype &pheno);
+	void evaluate(GAPhenotype &pheno);
 	void getClassToIndexMapping(std::map<std::string, unsigned int> &class_to_index, std::vector<std::string> classes);
 	void getAllClassesInDatabase(std::vector<std::string> &classes, const ModelHierarchy &modelHierarchy);
 	void getAllModelIndicesOfGivenClass(std::vector<unsigned int> &models, std::string target_class, const ModelHierarchy &model_hierarchy);

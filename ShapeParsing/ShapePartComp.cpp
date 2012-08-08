@@ -40,4 +40,4 @@ void ShapePartComp::LoadShapeSimilarityMeasurer(SHAPE_DESCRIPTOR_TYPE type)
 	}
 }
 
-
+bool ShapePartComp::USE_RELATIVE_SIZE_IMPORTANCE = true;

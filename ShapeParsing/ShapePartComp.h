@@ -42,6 +42,7 @@ protected:
 	}
 
 public:
+	static bool USE_RELATIVE_SIZE_IMPORTANCE;
 	/*! 
 		Constructs the functor using the shape similarity 
 		function specified by the user arguments.
@@ -50,6 +51,7 @@ public:
 	{
 		m_pSDC = NULL;
 		m_shapeDescriptorType = VOID_DESCRIPTOR;
+		USE_RELATIVE_SIZE_IMPORTANCE = true;
 	}
 
 	~ShapePartComp()
@@ -109,6 +111,9 @@ public:
 			ASSERT(v != nil);
 			ASSERT(m_pModelGraph->inf(v).nilMatchCost >= 0);
 
+			if (!USE_RELATIVE_SIZE_IMPORTANCE)
+				return m_pModelGraph->inf(v).nilMatchCost;
+
 			unsigned int shape_part_size = m_pModelGraph->inf(v).ptrDescriptor->GetBoundaryLength();
 			unsigned int shape_size = m_pModelGraph->getNumberOfBoundaryPoints();
 			double relative_part_size = (double)shape_part_size / (double)shape_size;
@@ -131,6 +136,10 @@ public:
 		else if (v == nil)
 		{
 			ASSERT(m_pQueryGraph->inf(u).nilMatchCost >= 0);
+
+			if (!USE_RELATIVE_SIZE_IMPORTANCE)
+				return m_pQueryGraph->inf(u).nilMatchCost;
+
 			unsigned int shape_part_size = m_pQueryGraph->inf(u).ptrDescriptor->GetBoundaryLength();
 			unsigned int shape_size = m_pQueryGraph->getNumberOfBoundaryPoints();
 			double relative_part_size = (double)shape_part_size / (double)shape_size;
@@ -158,6 +167,9 @@ public:
 			InitSDC(sp_q, sp_m);
 
 			double dist = m_pSDC->Match(*sp_q.ptrDescriptor, *sp_m.ptrDescriptor);
+
+			if (!USE_RELATIVE_SIZE_IMPORTANCE)
+				return dist;
 
 			// relative model size.
 			unsigned int shape_part_size = m_pModelGraph->inf(v).ptrDescriptor->GetBoundaryLength();

@@ -49,6 +49,7 @@
       <PreprocessorDefinitions>WIN32;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <OpenMPSupport>true</OpenMPSupport>
     </ClCompile>
     <Link>
       <AdditionalDependencies>libmysql.lib;mysqlclient.lib;mysys.lib;Tools.lib;GraphTheory.lib;MachineLearning.lib;ImageSegmentation.lib;ObjectTracking.lib;VideoSegmentation.lib;ShapeRepresentation.lib;ShapeParsing.lib;ShapeMatching.lib;ObjectRecognition.lib;VideoRepresentation.lib;VideoParser.lib;lemon.lib;Vfw32.lib;fltkgl$(FLTKLibSubfix).lib;fltk$(FLTKLibSubfix).lib;opencv_core$(OpenCVVersion)$(OpenCVLibSubfix).lib;opencv_flann$(OpenCVVersion)$(OpenCVLibSubfix).lib;opencv_imgproc$(OpenCVVersion)$(OpenCVLibSubfix).lib;opencv_highgui$(OpenCVVersion)$(OpenCVLibSubfix).lib;opencv_ml$(OpenCVVersion)$(OpenCVLibSubfix).lib;opencv_video$(OpenCVVersion)$(OpenCVLibSubfix).lib;opencv_objdetect$(OpenCVVersion)$(OpenCVLibSubfix).lib;opencv_features2d$(OpenCVVersion)$(OpenCVLibSubfix).lib;opencv_calib3d$(OpenCVVersion)$(OpenCVLibSubfix).lib;opencv_legacy$(OpenCVVersion)$(OpenCVLibSubfix).lib;opencv_contrib$(OpenCVVersion)$(OpenCVLibSubfix).lib;vsl.lib;vgl.lib;vbl_io.lib;v3p_netlib.lib;vnl_algo.lib;vnl_io.lib;vil_algo.lib;vul_io.lib;mpeg2.lib;vo.lib;vbl.lib;vul.lib;vnl.lib;geotiff.lib;vil.lib;vcl.lib;jpeg.lib;tiff.lib;png.lib;z.lib;opengl32.lib;glu32.lib;wsock32.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>

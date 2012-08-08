@@ -463,9 +463,15 @@ void ShapeParsingModel::Create(ShapeInfoPtr ptrShapeInfo,
 
 void ShapeParsingModel::ComputeShapeParses(unsigned int parameterization)
 {
+	parameterization = 4;
+
 	bool favour_cuts = false;
 	bool reweighting_1 = false;
 	bool reweighting_2 = false;
+	// for now, we are hardcoding this.
+	favour_cuts = true;
+	reweighting_1 = true;
+	/*
 	switch (parameterization)
 	{
 	case 0:
@@ -474,6 +480,8 @@ void ShapeParsingModel::ComputeShapeParses(unsigned int parameterization)
 		break;
 	case 1:
 		reweighting_1 = true;
+		// TEMP
+		favour_cuts = true;
 		break;
 	case 2:
 		favour_cuts = true;
@@ -482,11 +490,23 @@ void ShapeParsingModel::ComputeShapeParses(unsigned int parameterization)
 	case 3:
 		reweighting_2 = true;
 		break;
-	}
+	}*/
 
 	NodeMap<node> n2n(*this);
 	BeliefPropagationGraph bpg;
 	ParsingPotential* pPot;
+
+	// if we should not use relative shape size...
+	if (parameterization > 5)
+	{
+		// turn off relative shape size importance.
+		ShapePartComp::USE_RELATIVE_SIZE_IMPORTANCE = false;
+		parameterization -= 5;
+	}
+	else
+	{
+		ShapePartComp::USE_RELATIVE_SIZE_IMPORTANCE = true;
+	}
 
 	// Choose a potential based on the user arguments
 	if (favour_cuts)
@@ -495,13 +515,46 @@ void ShapeParsingModel::ComputeShapeParses(unsigned int parameterization)
 		TruthTable<2>::States state;
 		state[0] = 1;
 		state[1] = 1;
-		s_params.priors.AddStates(state, 0.51);
-		//s_params.priors[state] = 0.51;
+
+		if ((parameterization == 1) || (parameterization == 3) || (parameterization == 5))
+		{
+			s_params.priors.AddStates(state, 0.51); // 1, 3, 5
+		}
+		else if ((parameterization == 2) || (parameterization == 4))
+		{
+			s_params.priors.AddStates(state, 0.49); // 2, 4
+		}
+
 
 		state[0] = 1;
 		state[1] = 0;
-		s_params.priors.AddStates(state, 0.51);
-		//s_params.priors[state] = 0.51;
+
+		if ((parameterization == 2) || (parameterization == 5))
+		{
+			s_params.priors.AddStates(state, 0.49); // 2, 5
+		}
+		else if ((parameterization == 1) || (parameterization == 3) || (parameterization == 4))
+		{
+			s_params.priors.AddStates(state, 0.51); // 1, 3, 4
+		}
+
+		state[0] = 0;
+		state[1] = 1;
+		if ((parameterization == 3) || (parameterization == 4))
+		{
+			s_params.priors.AddStates(state, 0.51); // 3, 4
+		}
+		else if ((parameterization == 5))
+		{
+			s_params.priors.AddStates(state, 0.49); // 5
+		}
+
+		state[0] = 0;
+		state[1] = 0;
+		if ((parameterization == 3) || (parameterization == 4) || (parameterization == 5))
+		{
+			s_params.priors.AddStates(state, 0.49); // 3, 4, 5
+		}
 	}
 	else
 	{
@@ -583,6 +636,8 @@ void ShapeParsingModel::ComputeShapeParses(unsigned int parameterization)
 					num_cuts++;
 			}
 
+			//std::cout << "number of cuts: " << num_cuts << std::endl;
+
 			if (num_cuts > 3)
 			{
 				candidates[i].pr *= (alpha*0.9);
@@ -592,7 +647,7 @@ void ShapeParsingModel::ComputeShapeParses(unsigned int parameterization)
 				candidates[i].pr *= alpha;
 
 			}
-
+			//std::cout << "prob: " << candidates[i].pr << std::endl << std::endl;
 		}
 	}
 	else if (reweighting_2)

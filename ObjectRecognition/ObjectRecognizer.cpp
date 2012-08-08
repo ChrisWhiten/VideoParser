@@ -15,6 +15,8 @@
 #include <Tools/NamedColor.h>
 #include <VideoParserGUI/DrawingUtils.h>
 
+#include <omp.h>
+
 using namespace vpl;
 using namespace std;
 
@@ -539,7 +541,7 @@ void generateAllPermutations(std::map<std::string, unsigned int> &unfinished_map
 	}
 }
 
-double ObjectRecognizer::evaluate(GAPhenotype &pheno)
+void ObjectRecognizer::evaluate(GAPhenotype &pheno)
 {
 	const ModelHierarchy &mh = m_pObjectLearner->GetModelHierarchy();
 
@@ -563,12 +565,20 @@ double ObjectRecognizer::evaluate(GAPhenotype &pheno)
 			unsigned int model_class_index = class_to_index[model_to_class[model]];
 
 			// re-parse both by this parameterization.
+
 			ShapeInfoPtr query_contour = mh.GetModelView(query).ptrShapeContour;
-			std::list<ShapeParsingModel> shape_list = m_pShapeParser->getReparsedShapeList(query_contour, pheno.chromosome[model_class_index]);
+			std::list<ShapeParsingModel> shape_list;
+#pragma omp critical
+			{
+				shape_list = m_pShapeParser->getReparsedShapeList(query_contour, pheno.chromosome[model_class_index]);
+			}
 			std::vector<SPGPtr> query_spgs = element_at(shape_list, 0).GetShapeParses();
 
 			ShapeInfoPtr model_contour = mh.GetModelView(model).ptrShapeContour;
-			shape_list = m_pShapeParser->getReparsedShapeList(model_contour, pheno.chromosome[model_class_index]);
+#pragma omp critical
+			{
+				shape_list = m_pShapeParser->getReparsedShapeList(model_contour, pheno.chromosome[model_class_index]);
+			}
 			std::vector<SPGPtr> model_spgs = element_at(shape_list, 0).GetShapeParses();
 
 			// match all parses of the query against all parses of the model.
@@ -576,7 +586,11 @@ double ObjectRecognizer::evaluate(GAPhenotype &pheno)
 			{
 				for (auto model_parse = model_spgs.begin(); model_parse != model_spgs.end(); ++model_parse)
 				{
-					double score = m_pShapeMatcher->Match(*(*query_parse), *(*model_parse));
+					double score;
+#pragma omp critical
+					{
+						score = m_pShapeMatcher->Match(*(*query_parse), *(*model_parse));
+					}
 					if (score < best_score)
 					{
 						best_score = score;
@@ -590,7 +604,7 @@ double ObjectRecognizer::evaluate(GAPhenotype &pheno)
 			correct_matches++;
 	}
 
-	return correct_matches;
+	pheno.fitness = correct_matches;
 }
 
 void ObjectRecognizer::learnJointParsingModel()
@@ -609,12 +623,13 @@ void ObjectRecognizer::learnJointParsingModel()
 
 	// temporary.  Once we have our parameterizations set up a bit better,
 	// we will have a better way to address this.
-	unsigned int population_size = 10;
-	double crossover_rate = 0.8;
+	unsigned int population_size = 6;
+	double crossover_rate = 0.1;
 	unsigned int iterations = 5;
 	unsigned int number_of_classes = all_classes.size();
+	const int num_parameterizations = 2;
 	std::vector<unsigned int> parameterizations;
-	for (unsigned i = 0; i < 2; ++i)
+	for (unsigned i = 0; i < num_parameterizations; ++i)
 		parameterizations.push_back(i);
 	
 	// initialize population.
@@ -631,11 +646,14 @@ void ObjectRecognizer::learnJointParsingModel()
 		population.push_back(GAPhenotype(parameterizations, number_of_classes, chromosome));
 	}
 
-	// now random ones for the remainder.  the assumption here is that there are more
+	// [old] now random ones for the remainder.  the assumption here is that there are more
 	// members in the population than parameterizations.
+	//
+	// [new] Instead of randoms, push back mutations of the 'one param for all classes' phenotypes.  
 	for (unsigned i = 0; i < population_size - parameterizations.size(); ++i)
 	{
-		population.push_back(GAPhenotype(parameterizations, number_of_classes));
+		int selector = (rand() % num_parameterizations);
+		population.push_back(population[selector].mutate());
 	}
 
 	for (unsigned int iteration = 0; iteration < iterations; ++iteration)
@@ -659,14 +677,21 @@ void ObjectRecognizer::learnJointParsingModel()
 			population.push_back(population[i + 1].mutate());
 		}
 
+#define NUM_THREADS 8
+		omp_set_num_threads(NUM_THREADS);
+
 		cout << "eval" << endl;
 		// evaluate all of our candidates.
-		for (unsigned i = 0; i < population.size(); ++i)
+#pragma omp parallel for
+		for (int i = 0; i < population.size(); ++i)
 		{
-			population[i].fitness = evaluate(population[i]);
-			cout << endl;
-			cout << population[i].toString() << endl;
-			cout << population[i].fitness << endl;
+			evaluate(population[i]);
+#pragma omp critical
+			{
+				cout << endl;
+				cout << population[i].toString() << endl;
+				cout << population[i].fitness << endl;
+			}
 		}
 
 		// tournament selection to trim the fat.
@@ -761,8 +786,8 @@ void ObjectRecognizer::clusterShapes()
 			shape_context_spgs.push_back(spg_model_pair);
 		}
 
-		cout << "Clustering about " << *c << endl;
-		cout << "------------------------------------------------------------------------------" << endl << endl;
+		cout << endl << "Clustering about " << *c << endl;
+		cout << "------------------------------------------------------------------------------" << endl;
 		vector<KMedoids> clusterings;
 		const int NUM_CLUSTERS = 50;
 		int best_cluster = 0;
@@ -783,10 +808,6 @@ void ObjectRecognizer::clusterShapes()
 		}
 
 		cout << "Centroids + costs: " << endl;
-		if (clusterings[best_cluster].optimal_centroid_costs.size() == 0)
-		{
-			cout << "THROWING A FITTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT" << endl << endl << endl << endl;
-		}
 		for (auto p = clusterings[best_cluster].optimal_centroid_costs.begin(); p != clusterings[best_cluster].optimal_centroid_costs.end(); ++p)
 		{
 			const ModelHierarchy::ModelView &model_view = model_hierarchy.GetModelView(clusterings[best_cluster].points[p->first].id);
@@ -1323,7 +1344,6 @@ void ObjectRecognizer::Run()
 			{
 				const ShapeParseGraph& G_q = *qr.queryParses[gmatch.queryParseIdx];
 
-
 				// For all model shapes in the model database
 				for (gmatch.modelViewIdx = 0; gmatch.modelViewIdx < numModelViews; 
 					++gmatch.modelViewIdx)
@@ -1382,7 +1402,6 @@ void ObjectRecognizer::Run()
 						const ShapeParseGraph& G_m = modelHierarchy.GetShapeParse(
 							gmatch.modelViewIdx, gmatch.modelParseIdx);
 
-					
 						gmatch.value = m_pShapeMatcher->Match(G_q, G_m);
 						//const ShapeParseGraph test = modelHierarchy.GetShapeParse(gmatch.modelViewIdx, gmatch.modelParseIdx);
 						/*NodeMatchMap mapping = gmatch.nodeMap;
