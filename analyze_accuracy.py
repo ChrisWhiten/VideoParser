@@ -14,6 +14,7 @@ Also graphs the accuracy over frames with matplotlib's graphing functionality
 __author__ = 'Chris Whiten'
 
 import matplotlib.pyplot as plt
+import collections
 from os import path
 
 """
@@ -86,44 +87,61 @@ def parseComplexMatchFile(stem):
 	# to including precision/recall... for now, we only end up 
 	# using the first one.
 	frames = []
+	frame_matches = []
 	for i in xrange(len(match_lines)):
 		words = match_lines[i].split("(")
 		if (len(words) > 1):
 			results = []
+			matches = []
 			del words[0] # remove the prefix.
-			for word in words:
-				word = word.strip(")").strip(" ")
-				if word.endswith("1"):
-					results.append(1)
-				elif word.endswith("0"):
-					results.append(0)
-			frames.append(results)
 			
-	return frames, classes
+			for word in words:
+				word = word.replace(")", "").strip(" ").strip()
+				parsed = word.split(",")
+				
+				if parsed[-1] is "1":
+					results.append(1)
+				elif parsed[-1] is "0":
+					results.append(0)
+				matches.append(int(parsed[1]))
+				
+			frames.append(results)
+			frame_matches.append(matches)
+	return frames, frame_matches, classes
 
 def parseRecognitionResults(spg_matching_stems, shape_context_stems):
 	"""Parse object recognition results and put them into a graphable format"""
 	spg_results = []
+	spg_matches = []
 	shape_context_results = []
 	classes = []
+	
 	for stem in spg_matching_stems:
-		frames, classes = parseComplexMatchFile(stem)
+		frames, frame_matches, classes = parseComplexMatchFile(stem)
 		spg_results.append(frames)
-		#spg_results.append(parseComplexMatchFile(stem))
+		spg_matches.append(frame_matches)
+		
 	for stem in shape_context_stems:
 		shape_context_results.append(parseSimpleMatchFile(stem))
-	return (spg_results, shape_context_results, classes)
+		
+	return (spg_results, spg_matches, shape_context_results, classes)
 
 	
-def computeMAPAssignments(results):
+def computeMAPAssignments(results, matches):
 	"""Select the best matched result from SPG recognition"""
 	MAP_assignments = []
-	for experiment in results:
+	MAP_matches = []
+
+	for experiment in xrange(len(results)):
 		MAP_assignment = []
-		for frame in experiment:
-			MAP_assignment.append(frame[0])
+		MAP_match_assignment = []
+		for frame in xrange(len(results[experiment])):
+			MAP_assignment.append(results[experiment][frame][0])
+			MAP_match_assignment.append(matches[experiment][frame][0])
+
 		MAP_assignments.append(MAP_assignment)
-	return MAP_assignments
+		MAP_matches.append(MAP_match_assignment)
+	return MAP_assignments, MAP_matches
 	
 def computeGraphableAccuracy(experiment):
 	"""Construct graphable list from parsed object recognition results"""
@@ -170,41 +188,107 @@ def graphRecognitionAccuracy(spg_results, spg_legends, sc_legends, shape_context
 	plt.show()
 		
 
-def comparePerClassPerformance(MAP_assignments, legends, classes):
+def comparePerClassPerformance(MAP_assignments, legends, classes, MAP_matches):
+	""" 
+	Compute statistics on a per-class basis.  We aim to find out where the successes
+	and shortcomings are for each experiment, and hopefully find a mixture of the
+	experiments that produces favourable results.  
+
+	[TODO] The lists of dictionaries of dictionaries idea is pretty convoluted and hard to follow.
+	Perhaps python has a better construct for these, or we should organize everything into objects.
+	"""
 	# Compute the statistics on a per-class basis.
 	# The goal is to find out if 'a' improves over 'b' for any class.
-	
+
 	total_class_sums = {}
-	data_class_sums = []
+	experiment_sums = []
+	experiment_match_sums = []
 	
+	# initialize empty dictionary for each experiment.
 	for assignment in MAP_assignments:
 		class_sums = {}
-		data_class_sums.append(class_sums)
+		match_sums = {}
+		experiment_sums.append(class_sums)
+		experiment_match_sums.append(match_sums)
 	
+	# gather sums of matches for each class, over each experiment.
+	for experiment in xrange(len(experiment_sums)):
+		experiment_match_sums[experiment] = collections.defaultdict(dict)
+		for i in xrange(len(classes)):
+			experiment_match_sums[experiment][classes[i]][classes[MAP_matches[experiment][i]]] = experiment_match_sums[experiment][classes[i]].get(classes[MAP_matches[experiment][i]], 0) + 1
+			experiment_sums[experiment][classes[i]] = experiment_sums[experiment].get(classes[i], 0) + MAP_assignments[experiment][i]
+
+	# total counts.
 	for i in xrange(len(classes)):
-		for spg in xrange(len(data_class_sums)):
-			data_class_sums[spg][classes[i]] = data_class_sums[spg].get(classes[i], 0) + MAP_assignments[spg][i]
 		total_class_sums[classes[i]] = total_class_sums.get(classes[i], 0) + 1
+
+	"""for i in xrange(len(classes)):
+		for experiment in xrange(len(experiment_sums)):
+			experiment_sums[experiment][classes[i]] = experiment_sums[experiment].get(classes[i], 0) + MAP_assignments[experiment][i]
+
+			# Oy.
+			experiment_match_sums[experiment][classes[i]] = collections.defaultdict(int)
+			#print classes[MAP_matches[experiment][i]]
+			experiment_match_sums[experiment][classes[i]][classes[MAP_matches[experiment][i]]] = experiment_match_sums[experiment][classes[i]].get(classes[MAP_matches[experiment][i]], 0) + 1
+			print classes[i], "->", classes[MAP_matches[experiment][i]]
+			#experiment_match_sums[experiment][classes[i]][MAP_matches[experiment][classes[i]]].get(classes[i], 0) + MAP_matches[experiment][i]
+		total_class_sums[classes[i]] = total_class_sums.get(classes[i], 0) + 1"""
 		
+	"""for k in experiment_match_sums[0].keys():
+		print k, ": ", experiment_match_sums[0][k]
+	print experiment_match_sums[0]["cat"]
+	exit()"""
+
+
+
+	# print some general statistics, determine the best SPG, the class accuracies, etc..
 	for k in total_class_sums.keys():
 		# store the max to display the winner on each class.
-		best_spg = legends[0]
-		best_spg_score = data_class_sums[0][k]
+		best_experiment = legends[0]
+		best_experiment_score = experiment_sums[0][k]
 		
 		print k
 		print "--------------"
-		for spg in xrange(len(data_class_sums)):
-			print legends[spg], ": ", data_class_sums[spg][k],  "/", total_class_sums[k], " = ", data_class_sums[spg][k] / float(total_class_sums[k]) * 100, "%"
-			if data_class_sums[spg][k] > best_spg_score:
-				best_spg_score = data_class_sums[spg][k]
-				best_spg = legends[spg]
+		for experiment in xrange(len(experiment_sums)):
+			# Overall accuracy of this class on this experiment.
+			print legends[experiment], ": ", experiment_sums[experiment][k],  "/", total_class_sums[k], " = ", experiment_sums[experiment][k] / float(total_class_sums[k]) * 100, "%"
+
+			# This shows what classes this experiment matched members of this class against.  Good for determining which classes are getting mixed up
+			for key in experiment_match_sums[experiment][k].keys():
+				print "-> ", key, ":", experiment_match_sums[experiment][k][key]
+
+			if experiment_sums[experiment][k] > best_experiment_score:
+				best_experiment_score = experiment_sums[experiment][k]
+				best_experiment = legends[experiment]
 				
-		print "Best: ", best_spg
+		print "Best: ", best_experiment
 		print ""
+
+	# determine which classes caused the most mismatches for each experiment.
+	for experiment in xrange(len(experiment_sums)):
+		mismatch_sums = collections.defaultdict(int)
+
+		for k in total_class_sums.keys():
+			for key in experiment_match_sums[experiment][k].keys():
+				if k != key:
+					mismatch_sums[key] += experiment_match_sums[experiment][k][key]
+
+		# print results.
+		print legends[experiment], "mismatch sums"
+		print "---------------------------"
+		for k in mismatch_sums.keys():
+			print k, ":", mismatch_sums[k]
 		
 if __name__ == '__main__':
-	spg_matching_stems = ["recognition_results_1.txt", "recognition_results_2.txt", "recognition_results_3.txt", "recognition_results_4.txt", "recognition_results_5.txt", "recognition_results_1_nosize.txt", "recognition_results_2_nosize.txt",  "recognition_results_3_nosize.txt", "recognition_results_4_nosize.txt", "recognition_results_5_nosize.txt", "recognition_results_joint.txt"] # add to this list (and the spg_legends list) to graph multiple results against each other.
-	spg_legends = [ "SPG 1", "SPG 2", "SPG 3", "SPG 4", "SPG 5", "SPG 1 no size", "SPG 2 no size", "SPG 3 no size", "SPG 4 no size", "SPG 5 no size", "SPG joint"]
+	"""spg_matching_stems = ["recognition_results_1.txt", "recognition_results_2.txt", "recognition_results_3.txt", "recognition_results_4.txt", 
+	"recognition_results_5.txt", "recognition_results_1_nosize.txt", "recognition_results_2_nosize.txt",  "recognition_results_3_nosize.txt", 
+	"recognition_results_4_nosize.txt", "recognition_results_5_nosize.txt", "recognition_results_joint_1.txt", "recognition_results_joint_2.txt",
+	"recognition_results_joint_3.txt"] # add to this list (and the spg_legends list) to graph multiple results against each other.
+	
+	spg_legends = [ "SPG 1", "SPG 2", "SPG 3", "SPG 4", "SPG 5", "SPG 1 no size", "SPG 2 no size", "SPG 3 no size", "SPG 4 no size", "SPG 5 no size", 
+	"SPG joint 1", "SPG joint 2", "SPG joint 3"]"""
+	spg_matching_stems = ["recognition_results_joint_3.txt", "recognition_results_joint_4.txt", "recognition_results_joint_5.txt", "recognition_results_joint_6.txt", "recognition_results_joint_7.txt", "recognition_results_joint_8.txt"]
+	spg_legends = ["SPG joint 3", "SPG joint 4", "SPG joint 5", "SPG joint 6", "SPG joint 7", "SPG joint 8"]
 	shape_context_stems = []
 	shape_context_legends = []
 	
@@ -213,8 +297,8 @@ if __name__ == '__main__':
 	# spg_results[i][j][k] = kth best result for the jth frame in file i.
 	#
 	# shape_context_reults is of the form shape_context_results[i] = whether or not frame i's MAP assignment was correct.
-	spg_results, shape_context_results, classes = parseRecognitionResults(spg_matching_stems, shape_context_stems)
-	MAP_assignments = computeMAPAssignments(spg_results)
-	
-	comparePerClassPerformance(MAP_assignments, spg_legends, classes)
+	spg_results, spg_matches, shape_context_results, classes = parseRecognitionResults(spg_matching_stems, shape_context_stems)
+	MAP_assignments, MAP_matches = computeMAPAssignments(spg_results, spg_matches)
+
+	comparePerClassPerformance(MAP_assignments, spg_legends, classes, MAP_matches)
 	graphRecognitionAccuracy(MAP_assignments, spg_legends, shape_context_legends, shape_context_results)
